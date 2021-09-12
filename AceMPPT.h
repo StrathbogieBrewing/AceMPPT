@@ -16,6 +16,6 @@
 
 #define ACEMPPT_NAMES                                                     \
   {"Vpv2", ACEMPPT_VPV2}, {"Ich2", ACEMPPT_ICH2},                    \
-      {"Vpv3", ACEMPPT_VPV3}, {"Ich3", ACEMPPT_ICH3},
+      {"Vpv3", ACEMPPT_VPV3}, {"Ich3", ACEMPPT_ICH3}
 
 #endif // ACEMPPT_H
