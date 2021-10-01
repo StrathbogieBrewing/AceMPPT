@@ -18,6 +18,7 @@ uint16_t panelVoltage2 = 0;
 uint16_t chargeCurrent2 = 0;
 uint16_t panelVoltage3 = 0;
 uint16_t chargeCurrent3 = 0;
+uint16_t busError = AceBus_kOK;
 
 // void hexDump(char *tag, uint8_t *buffer, int size) {
 //   int i = 0;
@@ -46,19 +47,21 @@ void loop() {
   if (millis() % 1000 == 0) {
     mppt2.ping();
     mppt3.ping();
+    digitalWrite(2, LOW);
   }
 
+
   int status = aceBus.update();
-  if (status == AceBus_kWriteCollision)
-    Serial.println("tinbus/error\t\"collision\"");
-  if (status == AceBus_kWriteTimeout)
-    // Serial.println("TX Timeout");
-    Serial.println("tinbus/error\t\"timeout\"");
-  // if (status == AceBus_kWriteComplete) Serial.println("TX Complete");
+  if ((status == AceBus_kWriteCollision) || (status == AceBus_kWriteTimeout) ||
+      (status == AceBus_kReadOverunError) || (status == AceBus_kReadCRCError)) {
+        busError = status;
+        pinMode(2, OUTPUT);
+        digitalWrite(2, HIGH);
+  }
 }
 
-static sig_name_t sigNames[] = {ACEBMS_NAMES, ACEMPPT_NAMES,
-                                ACEDUMP_NAMES, ACEGRID_NAMES};
+static sig_name_t sigNames[] = {ACEBMS_NAMES, ACEMPPT_NAMES, ACEDUMP_NAMES,
+                                ACEGRID_NAMES};
 static const int sigCount = (sizeof(sigNames) / sizeof(sig_name_t));
 static int16_t values[sigCount];
 
@@ -68,9 +71,8 @@ void mqttPublish(msg_t *msg) {
     int16_t value;
     fmt_t format = sig_decode(msg, sigNames[index].sig, &value);
     if (format != FMT_NULL) {
-      if(value != values[index]){
+      if (value != values[index]) {
         values[index] = value;
-        Serial.print("tinbus/");
         Serial.print(sigNames[index].name);
         Serial.print("\t");
         char valueBuffer[FMT_MAXSTRLEN] = {0};
@@ -93,13 +95,12 @@ void aceCallback(tinframe_t *rxFrame) {
 
   int16_t value;
   if (sig_decode(msg, ACEBMS_VBAT, &value) != FMT_NULL) {
-    uint32_t senseVoltage = (value + 5) / 10 - 5;
+    uint32_t senseVoltage = value;
     int16_t balance = (int16_t)chargeCurrent2 - (int16_t)chargeCurrent3;
     if (balance > 8)
       balance = 8;
     if (balance < -8)
       balance = -8;
-    // balance /= 16;
     mppt2.set(VEDirect_kBatterySense, senseVoltage + balance);
     mppt3.set(VEDirect_kBatterySense, senseVoltage);
   }
@@ -112,6 +113,8 @@ void aceCallback(tinframe_t *rxFrame) {
       sig_encode(txMsg, ACEMPPT_ICH2, chargeCurrent2);
       sig_encode(txMsg, ACEMPPT_VPV3, panelVoltage3);
       sig_encode(txMsg, ACEMPPT_ICH3, chargeCurrent3);
+      sig_encode(txMsg, ACEMPPT_BERR, busError);
+      busError = AceBus_kOK;
       aceBus.write(&txFrame);
       mqttPublish(txMsg);
     }
@@ -120,18 +123,18 @@ void aceCallback(tinframe_t *rxFrame) {
 
 void mppt2Callback(uint16_t id, int32_t value) {
   if (id == VEDirect_kPanelVoltage) {
-    panelVoltage2 = value / 100;
+    panelVoltage2 = SIG_DIVU16BY100(value);
   }
   if (id == VEDirect_kChargeCurrent) {
-    chargeCurrent2 = value / 10;
+    chargeCurrent2 = SIG_DIVS16BY10(value);
   }
 }
 
 void mppt3Callback(uint16_t id, int32_t value) {
   if (id == VEDirect_kPanelVoltage) {
-    panelVoltage3 = value / 100;
+    panelVoltage3 = SIG_DIVU16BY100(value);
   }
   if (id == VEDirect_kChargeCurrent) {
-    chargeCurrent3 = value / 10;
+    chargeCurrent3 = SIG_DIVS16BY10(value);
   }
 }
