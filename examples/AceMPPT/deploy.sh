@@ -4,7 +4,7 @@ set -e
 
 REMOTEHOST=pi@raspberrypi.local
 
-arduino-cli compile --fqbn arduino:avr:mega AceMPPT.ino
+arduino-cli compile --clean --fqbn arduino:avr:mega AceMPPT.ino
 
 scp build/arduino.avr.mega/AceMPPT.ino.hex $REMOTEHOST:~
 

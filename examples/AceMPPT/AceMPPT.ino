@@ -1,8 +1,8 @@
 #include "AceBMS.h"
-#include "TinBus.h"
 #include "AceDump.h"
 #include "AceGrid.h"
 #include "AceMPPT.h"
+#include "TinBus.h"
 #include "VEDirect.h"
 
 #define kRxInterruptPin (19)
@@ -41,21 +41,16 @@ void loop() {
     mppt3.ping();
   }
 
-  if(m - debugTimer > 100L){
+  if (m - debugTimer > 100L) {
     digitalWrite(2, LOW);
   }
 
   int status = tinBus.update();
   if ((status == TinBus_kWriteCollision) || (status == TinBus_kWriteTimeout) ||
       (status == TinBus_kReadOverrun) || (status == TinBus_kReadCRCError)) {
-        busError = status;
-        debugTimer = m;
-        pinMode(2, OUTPUT);
-        digitalWrite(2, HIGH);
-        Serial.println(status);
+    busError = status;
   }
 }
-
 
 void hexDump(char *tag, uint8_t *buffer, int size) {
   int i = 0;
@@ -69,32 +64,28 @@ void hexDump(char *tag, uint8_t *buffer, int size) {
   Serial.println();
 }
 
-static sig_name_t sigNames[] = {ACEBMS_NAMES, ACEMPPT_NAMES};
-// , ACEDUMP_NAMES, ACEGRID_NAMES};
+static sig_name_t sigNames[] = {ACEBMS_NAMES, ACEMPPT_NAMES, ACEDUMP_NAMES,
+                                ACEGRID_NAMES};
 static const int sigCount = (sizeof(sigNames) / sizeof(sig_name_t));
 
 void mqttPublish(msg_t *msg) {
-
-  // hexDump("msg", (uint8_t *)msg, sizeof(msg_t));
-
-
   int index = 0;
   while (index < sigCount) {
     int16_t value;
     fmt_t format = sig_decode(msg, sigNames[index].sig, &value);
     if (format != FMT_NULL) {
-        Serial.print(sigNames[index].name);
-        Serial.print("\t");
-        char valueBuffer[FMT_MAXSTRLEN] = {0};
-        sig_toString(msg, sigNames[index].sig, valueBuffer);
-        Serial.println(valueBuffer);
+      Serial.print(sigNames[index].name);
+      Serial.print("\t");
+      char valueBuffer[FMT_MAXSTRLEN] = {0};
+      sig_toString(msg, sigNames[index].sig, valueBuffer);
+      Serial.println(valueBuffer);
     }
     index++;
   }
 }
 
 void busCallback(unsigned char *data, unsigned char length) {
-  hexDump("msg", (data, length);
+  // hexDump("msg", data, length);
 
   msg_t *msg = (msg_t *)data;
   mqttPublish(msg);
@@ -103,7 +94,7 @@ void busCallback(unsigned char *data, unsigned char length) {
   if (sig_decode(msg, ACEBMS_VBAT, &value) != FMT_NULL) {
     uint32_t senseVoltage = value;
     int16_t balance = (int16_t)chargeCurrent2 - (int16_t)chargeCurrent3;
-    if (balance > 8)  // limit current based balancing adjustment to vsense
+    if (balance > 8) // limit current based balancing adjustment to vsense
       balance = 8;
     if (balance < -8)
       balance = -8;
@@ -119,7 +110,12 @@ void busCallback(unsigned char *data, unsigned char length) {
       sig_encode(&txMsg, ACEMPPT_VPV3, panelVoltage3);
       sig_encode(&txMsg, ACEMPPT_ICH3, chargeCurrent3);
       uint8_t size = sig_encode(&txMsg, ACEMPPT_BERR, busError);
-      tinBus.write((unsigned char*)&txMsg, size, tinframe_kPriorityMedium);
+      tinBus.write((uint8_t *)&txMsg, size, MEDIUM_PRIORITY);
+
+      // pinMode(2, OUTPUT);
+      // digitalWrite(2, HIGH);
+      // debugTimer = millis();
+
       mqttPublish(&txMsg);
       busError = TinBus_kOK;
     }
