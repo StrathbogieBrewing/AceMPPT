@@ -17,10 +17,10 @@
     (ACEMPPT_STATUS | SIG_BYTE | SIG_OFF6 | SIG_UNIT | SIG_UINT)
 
 #define ACEMPPT_NAMES               \
-      {"mppt/2/vpv", ACEMPPT_VPV2}, \
-      {"mppt/2/ich", ACEMPPT_ICH2}, \
-      {"mppt/3/vpv", ACEMPPT_VPV3}, \
-      {"mppt/3/ich", ACEMPPT_ICH3}, \
-      {"mppt/berr", ACEMPPT_BERR}
+      {"m2Vs", ACEMPPT_VPV2}, \
+      {"m2Ib", ACEMPPT_ICH2}, \
+      {"m3Vs", ACEMPPT_VPV3}, \
+      {"m3Ib", ACEMPPT_ICH3}, \
+      {"mErr", ACEMPPT_BERR}
 
 #endif // ACEMPPT_H

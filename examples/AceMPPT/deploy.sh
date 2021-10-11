@@ -2,7 +2,7 @@
 
 set -e
 
-REMOTEHOST=pi@raspberrypi.local
+REMOTEHOST=johny@orac.lan
 
 arduino-cli compile --clean --fqbn arduino:avr:mega AceMPPT.ino
 
