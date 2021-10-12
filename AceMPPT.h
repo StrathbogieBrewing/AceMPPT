@@ -3,7 +3,8 @@
 
 #include "sig.h"
 
-#define ACEMPPT_STATUS (0x40 | SIG_SIZE7)
+#define ACEMPPT_STATUS (0x04 | SIG_SIZE7)
+#define ACEMPPT_COMMAND (0x00)
 
 #define ACEMPPT_ICH2                                                      \
   (ACEMPPT_STATUS | SIG_WORD | SIG_OFF0 | SIG_UNIT | SIG_UINT)

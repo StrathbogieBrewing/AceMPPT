@@ -122,17 +122,10 @@ void busCallback(unsigned char *data, unsigned char length) {
   int16_t value;
   if (sig_decode(msg, ACEBMS_VBAT, &value) != FMT_NULL) {
     senseVoltage = value;
-    // int16_t balance = (int16_t)chargeCurrent2 - (int16_t)chargeCurrent3;
-    // if (balance > 8) // limit current based balancing adjustment to vsense
-    //   balance = 8;
-    // if (balance < -8)
-    //   balance = -8;
-    // mppt2.set(VEDirect_kBatterySense, senseVoltage); // + balance);
-    // mppt3.set(VEDirect_kBatterySense, senseVoltage);
   }
   if (sig_decode(msg, ACEBMS_RQST, &value) != FMT_NULL) {
     uint8_t frameSequence = value;
-    if ((frameSequence & 0x03) == 0x03) {
+    if ((frameSequence & 0x0F) == (SIG_MSG_ID(ACEMPPT_STATUS) & 0x0F)) {
       msg_t txMsg;
       sig_encode(&txMsg, ACEMPPT_VPV2, panelVoltage2);
       sig_encode(&txMsg, ACEMPPT_ICH2, chargeCurrent2);
@@ -140,13 +133,14 @@ void busCallback(unsigned char *data, unsigned char length) {
       sig_encode(&txMsg, ACEMPPT_ICH3, chargeCurrent3);
       uint8_t size = sig_encode(&txMsg, ACEMPPT_BERR, busError);
       tinBus.write((uint8_t *)&txMsg, size, MEDIUM_PRIORITY);
-
-      // pinMode(2, OUTPUT);
-      // digitalWrite(2, HIGH);
-      // debugTimer = millis();
-
       logMessage(&txMsg);
       busError = TinBus_kOK;
+    }
+    if ((frameSequence & 0x0F) == (SIG_MSG_ID(ACEMPPT_COMMAND) & 0x0F)) {
+      msg_t txMsg;
+      uint8_t size = sig_encode(&txMsg, ACEDUMP_VSET, 2660);
+      tinBus.write((uint8_t *)&txMsg, size, MEDIUM_PRIORITY);
+      logMessage(&txMsg);
     }
   }
 }
