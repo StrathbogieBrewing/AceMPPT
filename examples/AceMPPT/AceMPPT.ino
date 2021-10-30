@@ -5,7 +5,7 @@
 #include "TinBus.h"
 #include "VEDirect.h"
 
-#include "ntc.h"
+#include "NTC.h"
 
 #define VSETPOINT (26700)
 #define ILIMIT (25000)
@@ -30,11 +30,11 @@ unsigned long debugTimer = 0;
 
 void setup() {
   Serial.begin(115200);
-  // mppt2.begin();
-  // mppt3.begin();
-  // tinBus.begin();
-  // mppt2.restart();
-  // mppt3.restart();
+  mppt2.begin();
+  mppt3.begin();
+  tinBus.begin();
+  mppt2.restart();
+  mppt3.restart();
 }
 
 #define TEMPERATURE (0)
@@ -69,13 +69,6 @@ void ADCUpdate(){
 }
 
 void loop() {
-
-  Serial.println("Tick");
-  delay(100);
-  Serial.println("Tock");
-  delay(100);
-  return;
-
   mppt2.update();
   mppt3.update();
 
@@ -84,8 +77,7 @@ void loop() {
   unsigned long now = micros();
   if (now - time >= 200000L) {  //  run every 200 ms
     time = now;
-
-    // ADCUpdate();
+    ADCUpdate();
     if (senseVoltage != 0) {
       mppt2.set(VEDirect_kBatterySense, senseVoltage);
       mppt3.set(VEDirect_kBatterySense, senseVoltage);
