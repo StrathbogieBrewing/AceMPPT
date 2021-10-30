@@ -1,9 +1,11 @@
 #include "AceBMS.h"
 #include "AceDump.h"
-#include "AceGrid.h"
+#include "AcePump.h"
 #include "AceMPPT.h"
 #include "TinBus.h"
 #include "VEDirect.h"
+
+#include "ntc.h"
 
 #define VSETPOINT (26700)
 #define ILIMIT (25000)
@@ -28,14 +30,52 @@ unsigned long debugTimer = 0;
 
 void setup() {
   Serial.begin(115200);
-  mppt2.begin();
-  mppt3.begin();
-  tinBus.begin();
-  mppt2.restart();
-  mppt3.restart();
+  // mppt2.begin();
+  // mppt3.begin();
+  // tinBus.begin();
+  // mppt2.restart();
+  // mppt3.restart();
+}
+
+#define TEMPERATURE (0)
+#define INSOLATION (1)
+
+#define PIN_TEMPERATURE (A0)
+#define PIN_INSOLATION (A1)
+
+#define ADC_COUNT (2)
+
+static uint8_t ADCIndex = 0;
+static uint16_t ADCFilter[ADC_COUNT] = {0};
+static int16_t ADCValue[ADC_COUNT] = {0};
+static uint8_t ADCPins[ADC_COUNT] = {PIN_TEMPERATURE, PIN_INSOLATION};
+
+void ADCUpdate(){
+  if (++ADCIndex >= ADC_COUNT)
+    ADCIndex = 0;
+  uint16_t filter = ADCFilter[ADCIndex];
+  if(filter == 0){
+    filter = analogRead(ADCPins[ADCIndex]) << 4;
+  } else {
+    filter -= (filter >> 4);
+    filter += analogRead(ADCPins[ADCIndex]);
+  }
+  ADCFilter[ADCIndex] = filter;
+  if(ADCIndex == TEMPERATURE){
+    ADCValue[ADCIndex] = ntc_getDeciCelcius(filter >> 4);
+  } else if (ADCIndex == INSOLATION){
+    ADCValue[ADCIndex] = (filter >> 4);
+  }
 }
 
 void loop() {
+
+  Serial.println("Tick");
+  delay(100);
+  Serial.println("Tock");
+  delay(100);
+  return;
+
   mppt2.update();
   mppt3.update();
 
@@ -44,6 +84,8 @@ void loop() {
   unsigned long now = micros();
   if (now - time >= 200000L) {  //  run every 200 ms
     time = now;
+
+    // ADCUpdate();
     if (senseVoltage != 0) {
       mppt2.set(VEDirect_kBatterySense, senseVoltage);
       mppt3.set(VEDirect_kBatterySense, senseVoltage);
@@ -57,7 +99,7 @@ void loop() {
         mppt3.set(VEDirect_kNetworkMode, VEDirect_kExternalControlMode);
       }
       if (dsecs == 1) {
-        mppt2.set(VEDirect_VoltageSetpoint, SIG_DIVU16BY10(VSETPOINT - 50));
+        mppt2.set(VEDirect_VoltageSetpoint, SIG_DIVU16BY10(VSETPOINT));
         mppt3.set(VEDirect_VoltageSetpoint, SIG_DIVU16BY10(VSETPOINT));
       }
       if (dsecs == 2) {
@@ -87,7 +129,7 @@ void hexDump(char *tag, uint8_t *buffer, int size) {
 }
 
 static sig_name_t sigNames[] = {ACEBMS_NAMES, ACEMPPT_NAMES, ACEDUMP_NAMES,
-                                ACEGRID_NAMES};
+                                ACEPUMP_NAMES};
 static const int sigCount = (sizeof(sigNames) / sizeof(sig_name_t));
 
 void logMessage(msg_t *msg) {
@@ -136,12 +178,21 @@ void busCallback(unsigned char *data, unsigned char length) {
       logMessage(&txMsg);
       busError = TinBus_kOK;
     }
-    if ((frameSequence & 0x0F) == (SIG_MSG_ID(ACEMPPT_COMMAND) & 0x0F)) {
+    if ((frameSequence & 0x0F) == (SIG_MSG_ID(ACEMPPT_SENSOR) & 0x0F)) {
       msg_t txMsg;
-      uint8_t size = sig_encode(&txMsg, ACEDUMP_VSET, 2660);
+      sig_encode(&txMsg, ACEMPPT_INSOL, ADCValue[INSOLATION]);
+      sig_encode(&txMsg, ACEMPPT_EXTTMP, ADCValue[TEMPERATURE]);
+      uint8_t size = sig_encode(&txMsg, ACEMPPT_OFFPOW, 123);
       tinBus.write((uint8_t *)&txMsg, size, MEDIUM_PRIORITY);
       logMessage(&txMsg);
+      busError = TinBus_kOK;
     }
+    // if ((frameSequence & 0x0F) == (SIG_MSG_ID(ACEMPPT_COMMAND) & 0x0F)) {
+    //   msg_t txMsg;
+    //   uint8_t size = sig_encode(&txMsg, ACEDUMP_VSET, 2660);
+    //   tinBus.write((uint8_t *)&txMsg, size, MEDIUM_PRIORITY);
+    //   logMessage(&txMsg);
+    // }
   }
 }
 
