@@ -7,8 +7,8 @@
 
 #include "NTC.h"
 
-#define VSETPOINT (26700)
-#define ILIMIT (25000)
+#define VSETPOINT (26600)
+#define ILIMIT (30000)
 
 #define kRxInterruptPin (19)
 void busCallback(unsigned char *data, unsigned char length);
@@ -148,7 +148,7 @@ void logMessage(msg_t *msg) {
 }
 
 void busCallback(unsigned char *data, unsigned char length) {
-  // hexDump("msg", data, length);
+  // hexDump("msg", data, length); 
 
   msg_t *msg = (msg_t *)data;
   logMessage(msg);
@@ -179,12 +179,12 @@ void busCallback(unsigned char *data, unsigned char length) {
       logMessage(&txMsg);
       busError = TinBus_kOK;
     }
-    // if ((frameSequence & 0x0F) == (SIG_MSG_ID(ACEMPPT_COMMAND) & 0x0F)) {
-    //   msg_t txMsg;
-    //   uint8_t size = sig_encode(&txMsg, ACEDUMP_VSET, 2660);
-    //   tinBus.write((uint8_t *)&txMsg, size, MEDIUM_PRIORITY);
-    //   logMessage(&txMsg);
-    // }
+    if ((frameSequence & 0x0F) == (SIG_MSG_ID(ACEMPPT_COMMAND) & 0x0F)) {
+      msg_t txMsg;
+      uint8_t size = sig_encode(&txMsg, ACEDUMP_VSET, 2650);
+      tinBus.write((uint8_t *)&txMsg, size, MEDIUM_PRIORITY);
+      logMessage(&txMsg);
+    }
   }
 }
 

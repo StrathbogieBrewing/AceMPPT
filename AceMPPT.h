@@ -31,8 +31,8 @@
       {"m3Vs", ACEMPPT_VPV3}, \
       {"m3Ib", ACEMPPT_ICH3}, \
       {"mErr", ACEMPPT_BERR}, \
-      {"mInsol", ACEMPPT_INSOL}, \
-      {"mExtTmp", ACEMPPT_EXTTMP}, \
-      {"mPoffice", ACEMPPT_OFFPOW}
+      {"mSol", ACEMPPT_INSOL}, \
+      {"mTmp", ACEMPPT_EXTTMP}, \
+      {"mPsh", ACEMPPT_OFFPOW}
 
 #endif // ACEMPPT_H
