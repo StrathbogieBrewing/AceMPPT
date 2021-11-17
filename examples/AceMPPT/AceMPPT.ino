@@ -2,7 +2,7 @@
 #include "AceDump.h"
 #include "AcePump.h"
 #include "AceMPPT.h"
-#include "TinBus.h"
+#include "AceBus.h"
 #include "VEDirect.h"
 
 #include "NTC.h"
@@ -12,7 +12,7 @@
 
 #define kRxInterruptPin (19)
 void busCallback(unsigned char *data, unsigned char length);
-TinBus tinBus(Serial1, ACEBMS_BAUD, kRxInterruptPin, busCallback);
+AceBus aceBus(Serial1, ACEBMS_BAUD, kRxInterruptPin, busCallback);
 
 void mppt2Callback(uint16_t id, int32_t value);
 void mppt3Callback(uint16_t id, int32_t value);
@@ -23,8 +23,11 @@ uint16_t panelVoltage2 = 0;
 uint16_t chargeCurrent2 = 0;
 uint16_t panelVoltage3 = 0;
 uint16_t chargeCurrent3 = 0;
-uint16_t busError = TinBus_kOK;
+uint16_t busError = AceBus_kOK;
 uint32_t senseVoltage = 0;
+
+uint16_t gridSetPoint = 26800;
+uint16_t dumpSetPoint = 26500;
 
 unsigned long debugTimer = 0;
 
@@ -32,7 +35,7 @@ void setup() {
   Serial.begin(115200);
   mppt2.begin();
   mppt3.begin();
-  tinBus.begin();
+  aceBus.begin();
   mppt2.restart();
   mppt3.restart();
 }
@@ -79,8 +82,8 @@ void loop() {
     time = now;
     ADCUpdate();
     if (senseVoltage != 0) {
-      mppt2.set(VEDirect_kBatterySense, senseVoltage);
-      mppt3.set(VEDirect_kBatterySense, senseVoltage);
+      mppt2.set(VEDirect_kBatterySense, SIG_DIVU16BY10(senseVoltage));
+      mppt3.set(VEDirect_kBatterySense, SIG_DIVU16BY10(senseVoltage));
       senseVoltage = 0;
     } else {
       dsecs++;  // round robin of messages
@@ -101,9 +104,9 @@ void loop() {
     }
   }
 
-  int status = tinBus.update();
-  if ((status == TinBus_kWriteCollision) || (status == TinBus_kWriteTimeout) ||
-      (status == TinBus_kReadOverrun) || (status == TinBus_kReadCRCError)) {
+  int status = aceBus.update();
+  if ((status == AceBus_kWriteCollision) || (status == AceBus_kWriteTimeout) ||
+      (status == AceBus_kReadOverrun) || (status == AceBus_kReadCRCError)) {
     busError = status;
   }
 }
@@ -124,39 +127,97 @@ static sig_name_t sigNames[] = {ACEBMS_NAMES, ACEMPPT_NAMES, ACEDUMP_NAMES,
                                 ACEPUMP_NAMES};
 static const int sigCount = (sizeof(sigNames) / sizeof(sig_name_t));
 
+void sendByte(int16_t txChar){
+  static uint16_t checksum = 0;
+  if(txChar == EOF){
+    Serial.print(F(",cs=")); // append lrc to message
+    Serial.print(checksum);
+    Serial.print("\n");
+    checksum = 0;
+  } else {
+    checksum += (uint16_t)(txChar & 0xFF);
+    checksum += 0xFF;
+    Serial.write((uint8_t)(txChar & 0xFF));
+  }
+}
+
+void sendString(char *str){
+  while(*str){
+    sendByte((int16_t)((uint16_t) *str++));
+  }
+}
+
 void logMessage(msg_t *msg) {
   int index = 0;
   int count = 0;
+  if(Serial.availableForWrite() < 56)
+    return;
   while (index < sigCount) {
     int16_t value;
     fmt_t format = sig_decode(msg, sigNames[index].sig, &value);
     if (format != FMT_NULL) {
       if(count++ == 0)
-        Serial.print(":");
+        // Serial.print(":");
+        sendByte(':');
       else
-        Serial.print(",");
-      Serial.print(sigNames[index].name);
-      Serial.print("=");
+        // Serial.print(",");
+        sendByte(',');
+      // Serial.print(sigNames[index].name);
+      sendString(sigNames[index].name);
+      // Serial.print("=");
+      sendByte('=');
       char valueBuffer[FMT_MAXSTRLEN] = {0};
       sig_toString(msg, sigNames[index].sig, valueBuffer);
-      Serial.print(valueBuffer);
+      // Serial.print(valueBuffer);
+      sendString(valueBuffer);
     }
     index++;
   }
   if(count)
-    Serial.print("\n");
+    // Serial.print("\n");
+    sendByte(EOF);
 }
 
+// void logMessage(msg_t *msg) {
+//   int index = 0;
+//   int count = 0;
+//   if(Serial.availableForWrite() < 62)
+//     return;
+//   while (index < sigCount) {
+//     int16_t value;
+//     fmt_t format = sig_decode(msg, sigNames[index].sig, &value);
+//     if (format != FMT_NULL) {
+//       if(count++ == 0)
+//         Serial.print(":");
+//       else
+//         Serial.print(",");
+//       Serial.print(sigNames[index].name);
+//       Serial.print("=");
+//       char valueBuffer[FMT_MAXSTRLEN] = {0};
+//       sig_toString(msg, sigNames[index].sig, valueBuffer);
+//       Serial.print(valueBuffer);
+//     }
+//     index++;
+//   }
+//   if(count)
+//     Serial.print("\n");
+// }
+
 void busCallback(unsigned char *data, unsigned char length) {
-  // hexDump("msg", data, length); 
-
   msg_t *msg = (msg_t *)data;
-  logMessage(msg);
-
   int16_t value;
+  // scrape bus data
   if (sig_decode(msg, ACEBMS_VBAT, &value) != FMT_NULL) {
-    senseVoltage = value;
+    senseVoltage = value * 10;
   }
+  if (sig_decode(msg, ACEDUMP_VSET, &value) != FMT_NULL) {
+    if(value != SIG_DIVU16BY10(dumpSetPoint)){
+      gridSetPoint = 26650;
+    } else {
+      gridSetPoint = 26800;
+    }
+  }
+  // send data to bus / logger
   if (sig_decode(msg, ACEBMS_RQST, &value) != FMT_NULL) {
     uint8_t frameSequence = value;
     if ((frameSequence & 0x0F) == (SIG_MSG_ID(ACEMPPT_STATUS) & 0x0F)) {
@@ -166,26 +227,31 @@ void busCallback(unsigned char *data, unsigned char length) {
       sig_encode(&txMsg, ACEMPPT_VPV3, panelVoltage3);
       sig_encode(&txMsg, ACEMPPT_ICH3, chargeCurrent3);
       uint8_t size = sig_encode(&txMsg, ACEMPPT_BERR, busError);
-      tinBus.write((uint8_t *)&txMsg, size, MEDIUM_PRIORITY);
+      aceBus.write((uint8_t *)&txMsg, size, MEDIUM_PRIORITY);
       logMessage(&txMsg);
-      busError = TinBus_kOK;
-    }
-    if ((frameSequence & 0x0F) == (SIG_MSG_ID(ACEMPPT_SENSOR) & 0x0F)) {
+      busError = AceBus_kOK;
+    } else if ((frameSequence & 0x0F) == (SIG_MSG_ID(ACEMPPT_SENSOR) & 0x0F)) {
       msg_t txMsg;
       sig_encode(&txMsg, ACEMPPT_INSOL, ADCValue[INSOLATION]);
       sig_encode(&txMsg, ACEMPPT_EXTTMP, ADCValue[TEMPERATURE]);
       uint8_t size = sig_encode(&txMsg, ACEMPPT_OFFPOW, 123);
-      tinBus.write((uint8_t *)&txMsg, size, MEDIUM_PRIORITY);
+      aceBus.write((uint8_t *)&txMsg, size, MEDIUM_PRIORITY);
       logMessage(&txMsg);
-      busError = TinBus_kOK;
-    }
-    if ((frameSequence & 0x0F) == (SIG_MSG_ID(ACEMPPT_COMMAND) & 0x0F)) {
+    } else if ((frameSequence & 0x0F) == (SIG_MSG_ID(ACEMPPT_COMMAND) & 0x0F)) {
       msg_t txMsg;
-      uint8_t size = sig_encode(&txMsg, ACEDUMP_VSET, 2650);
-      tinBus.write((uint8_t *)&txMsg, size, MEDIUM_PRIORITY);
-      logMessage(&txMsg);
+      uint8_t size = 0;
+      if((frameSequence & 0x70) == 0x00){
+        size = sig_encode(&txMsg, ACEDUMP_SETV, SIG_DIVU16BY10(dumpSetPoint));
+      } else if((frameSequence & 0x70) == 0x10){
+        size = sig_encode(&txMsg, ACEPUMP_SETV, SIG_DIVU16BY10(gridSetPoint));
+      }
+      if(size){
+        aceBus.write((uint8_t *)&txMsg, size, MEDIUM_PRIORITY);
+        logMessage(&txMsg);
+      }
     }
   }
+  logMessage(msg);
 }
 
 void mppt2Callback(uint16_t id, int32_t value) {
