@@ -7,8 +7,8 @@
 
 #include "NTC.h"
 
-#define VSETPOINT (26800)
-#define ILIMIT (30000)
+#define VSETPOINT (26700)
+#define ILIMIT (25000)
 
 #define kRxInterruptPin (19)
 void busCallback(unsigned char *data, unsigned char length);
@@ -27,7 +27,7 @@ uint16_t busError = AceBus_kOK;
 uint32_t senseVoltage = 0;
 
 uint16_t gridSetPoint = 27000;
-uint16_t dumpSetPoint = 26900;
+uint16_t dumpSetPoint = 26800;
 
 unsigned long debugTimer = 0;
 

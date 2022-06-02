@@ -2,7 +2,7 @@
 
 set -e
 
-REMOTEHOST=johny@192.168.10.133
+REMOTEHOST=johny@192.168.8.203
 
 arduino-cli compile --clean --fqbn arduino:avr:mega AceMPPT.ino
 
