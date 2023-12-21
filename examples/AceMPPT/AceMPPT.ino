@@ -8,36 +8,32 @@
 #include "NTC.h"
 
 #define VSETPOINT (26700)
-#define ILIMIT (25000)
+#define ILIMIT (40000)
 
 #define kRxInterruptPin (19)
 void busCallback(unsigned char *data, unsigned char length);
 AceBus aceBus(Serial1, ACEBMS_BAUD, kRxInterruptPin, busCallback);
 
-void mppt2Callback(uint16_t id, int32_t value);
-void mppt3Callback(uint16_t id, int32_t value);
-VEDirect mppt2(Serial2, mppt2Callback);
-VEDirect mppt3(Serial3, mppt3Callback);
+void mpptCallback(uint16_t id, int32_t value);
 
-uint16_t panelVoltage2 = 0;
-uint16_t chargeCurrent2 = 0;
-uint16_t panelVoltage3 = 0;
-uint16_t chargeCurrent3 = 0;
+VEDirect mppt(Serial2, mpptCallback);
+
+uint16_t panelVoltage = 0;
+uint16_t chargeCurrent = 0;
+
 uint16_t busError = AceBus_kOK;
 uint32_t senseVoltage = 0;
 
-uint16_t gridSetPoint = 27000;
 uint16_t dumpSetPoint = VSETPOINT - 50;
+uint16_t chargeSetPoint = VSETPOINT + 25;
 
 unsigned long debugTimer = 0;
 
 void setup() {
-  Serial.begin(115200);
-  mppt2.begin();
-  mppt3.begin();
+  Serial.begin(19200);
+  mppt.begin();
   aceBus.begin();
-  mppt2.restart();
-  mppt3.restart();
+  mppt.restart();
 }
 
 #define TEMPERATURE (0)
@@ -72,8 +68,7 @@ void ADCUpdate(){
 }
 
 void loop() {
-  mppt2.update();
-  mppt3.update();
+  mppt.update();
 
   static uint8_t dsecs = 0;
   static unsigned long time = 0;
@@ -82,24 +77,20 @@ void loop() {
     time = now;
     ADCUpdate();
     if (senseVoltage != 0) {
-      mppt2.set(VEDirect_kBatterySense, SIG_DIVU16BY10(senseVoltage));
-      mppt3.set(VEDirect_kBatterySense, SIG_DIVU16BY10(senseVoltage));
+      mppt.set(VEDirect_kBatterySense, SIG_DIVU16BY10(senseVoltage));
       senseVoltage = 0;
     } else {
       dsecs++;  // round robin of messages
       if (dsecs > 2)
         dsecs = 0;
       if (dsecs == 0) {
-        mppt2.set(VEDirect_kNetworkMode, VEDirect_kExternalControlMode);
-        mppt3.set(VEDirect_kNetworkMode, VEDirect_kExternalControlMode);
+        mppt.set(VEDirect_kNetworkMode, VEDirect_kExternalControlMode);
       }
       if (dsecs == 1) {
-        mppt2.set(VEDirect_VoltageSetpoint, SIG_DIVU16BY10(VSETPOINT));
-        mppt3.set(VEDirect_VoltageSetpoint, SIG_DIVU16BY10(VSETPOINT));
+        mppt.set(VEDirect_VoltageSetpoint, SIG_DIVU16BY10(chargeSetPoint));
       }
       if (dsecs == 2) {
-        mppt2.set(VEDirect_CurrentLimit, SIG_DIVU16BY100(ILIMIT));
-        mppt3.set(VEDirect_CurrentLimit, SIG_DIVU16BY100(ILIMIT));
+        mppt.set(VEDirect_CurrentLimit, SIG_DIVU16BY100(ILIMIT));
       }
     }
   }
@@ -123,8 +114,7 @@ void hexDump(char *tag, uint8_t *buffer, int size) {
   Serial.println();
 }
 
-static sig_name_t sigNames[] = {ACEBMS_NAMES, ACEMPPT_NAMES, ACEDUMP_NAMES,
-                                ACEPUMP_NAMES};
+static sig_name_t sigNames[] = {ACEBMS_NAMES, ACEMPPT_NAMES, ACEDUMP_NAMES};
 static const int sigCount = (sizeof(sigNames) / sizeof(sig_name_t));
 
 void sendByte(int16_t txChar){
@@ -178,31 +168,6 @@ void logMessage(msg_t *msg) {
     sendByte(EOF);
 }
 
-// void logMessage(msg_t *msg) {
-//   int index = 0;
-//   int count = 0;
-//   if(Serial.availableForWrite() < 62)
-//     return;
-//   while (index < sigCount) {
-//     int16_t value;
-//     fmt_t format = sig_decode(msg, sigNames[index].sig, &value);
-//     if (format != FMT_NULL) {
-//       if(count++ == 0)
-//         Serial.print(":");
-//       else
-//         Serial.print(",");
-//       Serial.print(sigNames[index].name);
-//       Serial.print("=");
-//       char valueBuffer[FMT_MAXSTRLEN] = {0};
-//       sig_toString(msg, sigNames[index].sig, valueBuffer);
-//       Serial.print(valueBuffer);
-//     }
-//     index++;
-//   }
-//   if(count)
-//     Serial.print("\n");
-// }
-
 void busCallback(unsigned char *data, unsigned char length) {
   msg_t *msg = (msg_t *)data;
   int16_t value;
@@ -210,26 +175,18 @@ void busCallback(unsigned char *data, unsigned char length) {
   if (sig_decode(msg, ACEBMS_VBAT, &value) != FMT_NULL) {
     senseVoltage = value * 10;
   }
-  if (sig_decode(msg, ACEDUMP_VSET, &value) != FMT_NULL) {
-    if(value != SIG_DIVU16BY10(dumpSetPoint)){
-      gridSetPoint = 26650;
-    } else {
-      gridSetPoint = 26800;
-    }
-  }
   // send data to bus / logger
   if (sig_decode(msg, ACEBMS_RQST, &value) != FMT_NULL) {
     uint8_t frameSequence = value;
     if ((frameSequence & 0x0F) == (SIG_MSG_ID(ACEMPPT_STATUS) & 0x0F)) {
       msg_t txMsg;
-      sig_encode(&txMsg, ACEMPPT_VPV2, panelVoltage2);
-      sig_encode(&txMsg, ACEMPPT_ICH2, chargeCurrent2);
-      sig_encode(&txMsg, ACEMPPT_VPV3, panelVoltage3);
-      sig_encode(&txMsg, ACEMPPT_ICH3, chargeCurrent3);
+      sig_encode(&txMsg, ACEMPPT_VPV, panelVoltage);
+      sig_encode(&txMsg, ACEMPPT_ICH, chargeCurrent);
       uint8_t size = sig_encode(&txMsg, ACEMPPT_BERR, busError);
       aceBus.write((uint8_t *)&txMsg, size, MEDIUM_PRIORITY);
-      logMessage(&txMsg);
       busError = AceBus_kOK;
+      logMessage(&txMsg);
+      return;
     } else if ((frameSequence & 0x0F) == (SIG_MSG_ID(ACEMPPT_SENSOR) & 0x0F)) {
       msg_t txMsg;
       sig_encode(&txMsg, ACEMPPT_INSOL, ADCValue[INSOLATION]);
@@ -237,37 +194,24 @@ void busCallback(unsigned char *data, unsigned char length) {
       uint8_t size = sig_encode(&txMsg, ACEMPPT_OFFPOW, 123);
       aceBus.write((uint8_t *)&txMsg, size, MEDIUM_PRIORITY);
       logMessage(&txMsg);
+      return;
     } else if ((frameSequence & 0x0F) == (SIG_MSG_ID(ACEMPPT_COMMAND) & 0x0F)) {
       msg_t txMsg;
-      uint8_t size = 0;
-      if((frameSequence & 0x70) == 0x00){
-        size = sig_encode(&txMsg, ACEDUMP_SETV, SIG_DIVU16BY10(dumpSetPoint));
-      } else if((frameSequence & 0x70) == 0x10){
-        size = sig_encode(&txMsg, ACEPUMP_SETV, SIG_DIVU16BY10(gridSetPoint));
-      }
-      if(size){
-        aceBus.write((uint8_t *)&txMsg, size, MEDIUM_PRIORITY);
-        logMessage(&txMsg);
-      }
+      uint8_t size = sig_encode(&txMsg, ACEDUMP_VSET, SIG_DIVU16BY10(dumpSetPoint));
+      aceBus.write((uint8_t *)&txMsg, size, MEDIUM_PRIORITY);
+      logMessage(&txMsg);
+      return;
     }
   }
   logMessage(msg);
+  return;
 }
 
-void mppt2Callback(uint16_t id, int32_t value) {
+void mpptCallback(uint16_t id, int32_t value) {
   if (id == VEDirect_kPanelVoltage) {
-    panelVoltage2 = SIG_DIVU16BY100(value);
+    panelVoltage = SIG_DIVU16BY100(value);
   }
   if (id == VEDirect_kChargeCurrent) {
-    chargeCurrent2 = SIG_DIVS16BY10(value);
-  }
-}
-
-void mppt3Callback(uint16_t id, int32_t value) {
-  if (id == VEDirect_kPanelVoltage) {
-    panelVoltage3 = SIG_DIVU16BY100(value);
-  }
-  if (id == VEDirect_kChargeCurrent) {
-    chargeCurrent3 = SIG_DIVS16BY10(value);
+    chargeCurrent = SIG_DIVS16BY10(value);
   }
 }

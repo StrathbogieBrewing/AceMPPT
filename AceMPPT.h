@@ -7,16 +7,12 @@
 #define ACEMPPT_COMMAND (ACEBMS_MPPT_COMMAND)
 #define ACEMPPT_SENSOR (ACEBMS_MPPT_SENSOR | SIG_SIZE6)
 
-#define ACEMPPT_ICH2                                                      \
+#define ACEMPPT_ICH                                                      \
   (ACEMPPT_STATUS | SIG_WORD | SIG_OFF0 | SIG_UNIT | SIG_UINT)
-#define ACEMPPT_ICH3                                                      \
-  (ACEMPPT_STATUS | SIG_WORD | SIG_OFF2 | SIG_UNIT | SIG_UINT)
-#define ACEMPPT_VPV2                                                      \
-  (ACEMPPT_STATUS | SIG_BYTE | SIG_OFF4 | SIG_UNIT | SIG_UINT)
-#define ACEMPPT_VPV3                                                      \
-    (ACEMPPT_STATUS | SIG_BYTE | SIG_OFF5 | SIG_UNIT | SIG_UINT)
+#define ACEMPPT_VPV                                                      \
+  (ACEMPPT_STATUS | SIG_BYTE | SIG_OFF2 | SIG_UNIT | SIG_UINT)
 #define ACEMPPT_BERR                                                      \
-    (ACEMPPT_STATUS | SIG_BYTE | SIG_OFF6 | SIG_UNIT | SIG_UINT)
+    (ACEMPPT_STATUS | SIG_BYTE | SIG_OFF3 | SIG_UNIT | SIG_UINT)
 
 #define ACEMPPT_INSOL \
       (ACEMPPT_SENSOR | SIG_WORD | SIG_OFF0 | SIG_UNIT | SIG_UINT)
@@ -26,10 +22,8 @@
       (ACEMPPT_SENSOR | SIG_WORD | SIG_OFF4 | SIG_UNIT | SIG_UINT)
 
 #define ACEMPPT_NAMES               \
-      {"m2Vs", ACEMPPT_VPV2}, \
-      {"m2Ib", ACEMPPT_ICH2}, \
-      {"m3Vs", ACEMPPT_VPV3}, \
-      {"m3Ib", ACEMPPT_ICH3}, \
+      {"mVs", ACEMPPT_VPV}, \
+      {"mIb", ACEMPPT_ICH}, \
       {"mErr", ACEMPPT_BERR}, \
       {"mSol", ACEMPPT_INSOL}, \
       {"mTmp", ACEMPPT_EXTTMP}, \
