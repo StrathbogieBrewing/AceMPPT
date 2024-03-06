@@ -294,18 +294,18 @@ void logMessage(msg_t *msg) {
 
 void mpptCallback_0(uint16_t id, int32_t value) {
     if (id == VEDirect_kPanelVoltage) {
-        panelVoltage[0] = SIG_DIVU16BY100(value);
+        panelVoltage[0] = SIG_DIVU16BY10(value);
     }
     if (id == VEDirect_kChargeCurrent) {
-        chargeCurrent[0] = SIG_DIVS16BY10(value);
+        chargeCurrent[0] = value;
     }
 }
 
 void mpptCallback_1(uint16_t id, int32_t value) {
     if (id == VEDirect_kPanelVoltage) {
-        panelVoltage[1] = SIG_DIVU16BY100(value);
+        panelVoltage[1] = SIG_DIVU16BY10(value);
     }
     if (id == VEDirect_kChargeCurrent) {
-        chargeCurrent[1] = SIG_DIVS16BY10(value);
+        chargeCurrent[1] = value;
     }
 }

@@ -8,13 +8,13 @@
 #define ACEMPPT_SENSOR (ACEBMS_MPPT_SENSOR | SIG_SIZE6)
 
 #define ACEMPPT_ICH_0                                                      \
-  (ACEMPPT_STATUS | SIG_WORD | SIG_OFF0 | SIG_UNIT | SIG_UINT)
+  (ACEMPPT_STATUS | SIG_WORD | SIG_OFF0 | SIG_UNIT | SIG_DECI)
 #define ACEMPPT_ICH_1                                                      \
-  (ACEMPPT_STATUS | SIG_WORD | SIG_OFF2 | SIG_UNIT | SIG_UINT)
+  (ACEMPPT_STATUS | SIG_WORD | SIG_OFF2 | SIG_UNIT | SIG_DECI)
 #define ACEMPPT_VPV_0                                                      \
-  (ACEMPPT_STATUS | SIG_BYTE | SIG_OFF4 | SIG_UNIT | SIG_UINT)
+  (ACEMPPT_STATUS | SIG_BYTE | SIG_OFF4 | SIG_UNIT | SIG_DECI)
 #define ACEMPPT_VPV_1                                                      \
-  (ACEMPPT_STATUS | SIG_BYTE | SIG_OFF5 | SIG_UNIT | SIG_UINT)
+  (ACEMPPT_STATUS | SIG_BYTE | SIG_OFF5 | SIG_UNIT | SIG_DECI)
 
 #define ACEMPPT_NAMES               \
       {"mVs0", ACEMPPT_VPV_0}, \
