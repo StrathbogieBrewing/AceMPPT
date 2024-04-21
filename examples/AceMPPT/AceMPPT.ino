@@ -87,8 +87,8 @@ void process(void) {
         senseVoltage = cellSum;
         uint16_t cellAvg = cellSum / CELL_COUNT;
         bms.balanceVoltage = cellAvg + 2;
-        if (bms.balanceVoltage < 3200) {
-            bms.balanceVoltage = 3200;
+        if (bms.balanceVoltage < 3300) {
+            bms.balanceVoltage = 3300;
         }
         int i = CELL_COUNT;
         while (i--) {
@@ -99,7 +99,6 @@ void process(void) {
 
     if (++frameSequence >= (4 * 60)) {
         frameSequence = 0; // force rollover on minute boundary
-        // bms.balanceVoltage = 0; // reset balance voltage
     }
 
     msg_t msg;
@@ -294,7 +293,7 @@ void logMessage(msg_t *msg) {
 
 void mpptCallback_0(uint16_t id, int32_t value) {
     if (id == VEDirect_kPanelVoltage) {
-        panelVoltage[0] = SIG_DIVU16BY10(value);
+        panelVoltage[0] = value;
     }
     if (id == VEDirect_kChargeCurrent) {
         chargeCurrent[0] = value;
@@ -303,7 +302,7 @@ void mpptCallback_0(uint16_t id, int32_t value) {
 
 void mpptCallback_1(uint16_t id, int32_t value) {
     if (id == VEDirect_kPanelVoltage) {
-        panelVoltage[1] = SIG_DIVU16BY10(value);
+        panelVoltage[1] = value;
     }
     if (id == VEDirect_kChargeCurrent) {
         chargeCurrent[1] = value;
